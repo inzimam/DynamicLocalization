@@ -10,10 +10,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
 import com.inzimam.dynamiclocalization.utils.AllLanguage
 import com.inzimam.dynamiclocalization.utils.Data
-import com.inzimam.dynamiclocalization.utils.FileUtils
 import com.opencsv.CSVReader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.io.File
-import java.io.FileInputStream
 import java.io.InputStreamReader
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -44,24 +46,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         val downloadId = downloadManager.enqueue(request)
         val query = DownloadManager.Query().setFilterById(downloadId)
-        Thread {
-            var downloading = true
-            while (downloading) {
-                val cursor: Cursor = downloadManager.query(query)
-                cursor.moveToFirst()
-                val status = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_STATUS))
-                if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                    Thread.sleep(1000)
-                    downloading = false
+        GlobalScope.launch {
+            launch(Dispatchers.IO) {
+                var downloading = true
+                while (downloading) {
+                    val cursor: Cursor = downloadManager.query(query)
+                    cursor.moveToFirst()
+                    val status = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_STATUS))
+                    if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                        delay(1000)
+                        downloading = false
+                    }
+                    msg = statusMessage(url, directory, status)
+                    if (msg != lastMsg) {
+                        msgLiveData.postValue(Data(msg, status))
+                        lastMsg = msg
+                    }
+                    cursor.close()
                 }
-                msg = statusMessage(url, directory, status)
-                if (msg != lastMsg) {
-                    msgLiveData.postValue(Data(msg, status))
-                    lastMsg = msg ?: ""
-                }
-                cursor.close()
             }
-        }.start()
+        }
     }
 
     private fun statusMessage(url: String, directory: File, status: Int): String {

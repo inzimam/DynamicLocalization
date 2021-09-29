@@ -6,8 +6,6 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Toast
 import androidx.databinding.DataBindingUtil
-import androidx.lifecycle.Observer
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.inzimam.dynamiclocalization.databinding.ActivityMainBinding
 import com.inzimam.dynamiclocalization.utils.AllLanguage
@@ -28,19 +26,34 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         mainBinding = DataBindingUtil.setContentView(this, R.layout.activity_main)
+        initViewModel()
+        observeDownloadingStatus()
+        setupLanguageData()
+        setClickListener()
+    }
 
+    private fun initViewModel() {
         viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
+    }
+
+    private fun observeDownloadingStatus() {
         viewModel.getMsg().observe(this, {
             show(it)
         })
+    }
+
+    private fun setupLanguageData() {
         if (FileUtils().getFile().exists()) {
-            isr = InputStreamReader(FileInputStream(FileUtils().getFile()))
+            enableButtons()
+            isr = FileUtils().getInputStreamReader()
             viewModel.parseCSV(isr)
             mainBinding.progressCircular.visibility = View.GONE
         } else {
-            viewModel.downloadCSV("https://inzimam.pythonanywhere.com/return-files/language.csv")
+            viewModel.downloadCSV(FileUtils().getUrl())
         }
+    }
 
+    private fun setClickListener() {
         mainBinding.english.setOnClickListener {
             mainBinding.map = AllLanguage.getValue(LANGUAGES.ENGLISH.toString())
         }
@@ -53,18 +66,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun show(data: Data) {
-        this.runOnUiThread {
-            Toast.makeText(this, data.msg, Toast.LENGTH_SHORT).show()
-            if (data.status == DownloadManager.STATUS_SUCCESSFUL) {
-                mainBinding.progressCircular.visibility = View.GONE
-                try {
-                    val isr = InputStreamReader(FileInputStream(FileUtils().getFile()))
-                    viewModel.parseCSV(isr)
-                } catch (e: FileNotFoundException) {
-                    e.printStackTrace()
-                }
+        Toast.makeText(this, data.msg, Toast.LENGTH_SHORT).show()
+        if (data.status == DownloadManager.STATUS_SUCCESSFUL) {
+            enableButtons()
+            mainBinding.progressCircular.visibility = View.GONE
+            try {
+                val isr = FileUtils().getInputStreamReader()
+                viewModel.parseCSV(isr)
+            } catch (e: FileNotFoundException) {
+                e.printStackTrace()
             }
         }
     }
 
+    private fun enableButtons() {
+        mainBinding.english.isEnabled = true
+        mainBinding.hindi.isEnabled = true
+        mainBinding.dutch.isEnabled = true
+    }
 }
